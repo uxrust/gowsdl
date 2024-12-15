@@ -7,7 +7,6 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"time"
@@ -30,15 +29,16 @@ type SOAPEnvelopeResponse struct {
 }
 
 type SOAPEnvelope struct {
-	XMLName xml.Name `xml:"soap:Envelope"`
-	XmlNS   string   `xml:"xmlns:soap,attr"`
+	XMLName      xml.Name `xml:"soapenv:Envelope"`
+	XmlNsSoapEnv string   `xml:"xmlns:soapenv,attr"`
+	XmlNsSoap    string   `xml:"xmlns:soap,attr"`
 
 	Header *SOAPHeader
 	Body   SOAPBody
 }
 
 type SOAPHeader struct {
-	XMLName xml.Name `xml:"soap:Header"`
+	XMLName xml.Name `xml:"soapenv:Header"`
 
 	Headers []interface{}
 }
@@ -49,7 +49,7 @@ type SOAPHeaderResponse struct {
 }
 
 type SOAPBody struct {
-	XMLName xml.Name `xml:"soap:Body"`
+	XMLName xml.Name `xml:"soapenv:Body"`
 
 	Content interface{} `xml:",omitempty"`
 
@@ -188,56 +188,9 @@ func (e *HTTPError) Error() string {
 
 const (
 	// Predefined WSS namespaces to be used in
-	WssNsWSSE       string = "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd"
-	WssNsWSU        string = "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd"
-	WssNsType       string = "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordText"
 	mtomContentType string = `multipart/related; start-info="application/soap+xml"; type="application/xop+xml"; boundary="%s"`
 	XmlNsSoapEnv    string = "http://schemas.xmlsoap.org/soap/envelope/"
 )
-
-type WSSSecurityHeader struct {
-	XMLName   xml.Name `xml:"http://schemas.xmlsoap.org/soap/envelope/ wsse:Security"`
-	XmlNSWsse string   `xml:"xmlns:wsse,attr"`
-
-	MustUnderstand string `xml:"mustUnderstand,attr,omitempty"`
-
-	Token *WSSUsernameToken `xml:",omitempty"`
-}
-
-type WSSUsernameToken struct {
-	XMLName   xml.Name `xml:"wsse:UsernameToken"`
-	XmlNSWsu  string   `xml:"xmlns:wsu,attr"`
-	XmlNSWsse string   `xml:"xmlns:wsse,attr"`
-
-	Id string `xml:"wsu:Id,attr,omitempty"`
-
-	Username *WSSUsername `xml:",omitempty"`
-	Password *WSSPassword `xml:",omitempty"`
-}
-
-type WSSUsername struct {
-	XMLName   xml.Name `xml:"wsse:Username"`
-	XmlNSWsse string   `xml:"xmlns:wsse,attr"`
-
-	Data string `xml:",chardata"`
-}
-
-type WSSPassword struct {
-	XMLName   xml.Name `xml:"wsse:Password"`
-	XmlNSWsse string   `xml:"xmlns:wsse,attr"`
-	XmlNSType string   `xml:"Type,attr"`
-
-	Data string `xml:",chardata"`
-}
-
-// NewWSSSecurityHeader creates WSSSecurityHeader instance
-func NewWSSSecurityHeader(user, pass, tokenID, mustUnderstand string) *WSSSecurityHeader {
-	hdr := &WSSSecurityHeader{XmlNSWsse: WssNsWSSE, MustUnderstand: mustUnderstand}
-	hdr.Token = &WSSUsernameToken{XmlNSWsu: WssNsWSU, XmlNSWsse: WssNsWSSE, Id: tokenID}
-	hdr.Token.Username = &WSSUsername{XmlNSWsse: WssNsWSSE, Data: user}
-	hdr.Token.Password = &WSSPassword{XmlNSWsse: WssNsWSSE, XmlNSType: WssNsType, Data: pass}
-	return hdr
-}
 
 type basicAuth struct {
 	Login    string
@@ -262,7 +215,7 @@ var defaultOptions = options{
 	tlshshaketimeout: time.Duration(15 * time.Second),
 }
 
-// A Option sets options such as credentials, tls, etc.
+// Option sets options such as credentials, tls, etc.
 type Option func(*options)
 
 // WithHTTPClient is an Option to set the HTTP client to use
@@ -341,6 +294,7 @@ type Client struct {
 	opts        *options
 	headers     []interface{}
 	attachments []MIMEMultipartAttachment
+	xmlNsSoap   string
 }
 
 // HTTPClient is a client which can make HTTP requests
@@ -359,6 +313,10 @@ func NewClient(url string, opt ...Option) *Client {
 		url:  url,
 		opts: &opts,
 	}
+}
+
+func (s *Client) SetXmlNsSoap(xmlNsSoap string) {
+	s.xmlNsSoap = xmlNsSoap
 }
 
 // AddHeader adds envelope header
@@ -427,7 +385,7 @@ func (s *Client) call(ctx context.Context, soapAction string, request, response 
 	retAttachments *[]MIMEMultipartAttachment) error {
 	// SOAP envelope capable of namespace prefixes
 	envelope := SOAPEnvelope{
-		XmlNS: XmlNsSoapEnv,
+		XmlNsSoapEnv: XmlNsSoapEnv,
 	}
 
 	if s.headers != nil && len(s.headers) > 0 {
@@ -475,7 +433,7 @@ func (s *Client) call(ctx context.Context, soapAction string, request, response 
 		req.Header.Add("Content-Type", "text/xml; charset=\"utf-8\"")
 	}
 	req.Header.Add("SOAPAction", soapAction)
-	req.Header.Set("User-Agent", "gowsdl/0.1")
+	req.Header.Set("User-Agent", "go-wsdl")
 	if s.opts.httpHeaders != nil {
 		for k, v := range s.opts.httpHeaders {
 			req.Header.Set(k, v)
@@ -503,7 +461,7 @@ func (s *Client) call(ctx context.Context, soapAction string, request, response 
 	defer res.Body.Close()
 
 	if res.StatusCode >= 400 && res.StatusCode != 500 {
-		body, _ := ioutil.ReadAll(res.Body)
+		body, _ := io.ReadAll(res.Body)
 		return &HTTPError{
 			StatusCode:   res.StatusCode,
 			ResponseBody: body,
@@ -526,7 +484,7 @@ func (s *Client) call(ctx context.Context, soapAction string, request, response 
 	}
 
 	var mmaBoundary string
-	if s.opts.mma{
+	if s.opts.mma {
 		mmaBoundary, err = getMmaHeader(res.Header.Get("Content-Type"))
 		if err != nil {
 			return err

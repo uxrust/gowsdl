@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/xml"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -90,7 +90,7 @@ func TestClient_Send_Correct_Headers(t *testing.T) {
 			"GetTrade",
 			map[string]string{},
 			map[string]string{
-				"User-Agent":   "gowsdl/0.1",
+				"User-Agent":   "go-wsdl",
 				"SOAPAction":   "GetTrade",
 				"Content-Type": "text/xml; charset=\"utf-8\"",
 			},
@@ -138,7 +138,7 @@ func TestClient_Attachments_WithAttachmentResponse(t *testing.T) {
 		for k, v := range r.Header {
 			w.Header().Set(k, v[0])
 		}
-		bodyBuf, _ := ioutil.ReadAll(r.Body)
+		bodyBuf, _ := io.ReadAll(r.Body)
 		_, err := w.Write(bodyBuf)
 		if err != nil {
 			panic(err)
@@ -183,7 +183,7 @@ func TestClient_MTOM(t *testing.T) {
 		for k, v := range r.Header {
 			w.Header().Set(k, v[0])
 		}
-		bodyBuf, _ := ioutil.ReadAll(r.Body)
+		bodyBuf, _ := io.ReadAll(r.Body)
 		w.Write(bodyBuf)
 	}))
 	defer ts.Close()

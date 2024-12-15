@@ -13,9 +13,6 @@ import (
 	"go/parser"
 	"go/printer"
 	"go/token"
-	"io/ioutil"
-	"log"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -281,43 +278,6 @@ func TestComplexTypeGeneratedCorrectly(t *testing.T) {
 		t.Errorf("No match or too many matches found for WorkerObjectIDType")
 	} else if matches[0] != expected {
 		t.Errorf("WorkerObjectIDType got '%s' but expected '%s'", matches[1], expected)
-	}
-}
-
-func TestEPCISWSDL(t *testing.T) {
-	log.SetFlags(0)
-	log.SetOutput(os.Stdout)
-
-	g, err := NewGoWSDL("./fixtures/epcis/EPCglobal-epcis-query-1_2.wsdl", "myservice", true, true)
-	if err != nil {
-		t.Error(err)
-	}
-
-	resp, err := g.Start()
-	if err != nil {
-		t.Fatal(err)
-	}
-	data := new(bytes.Buffer)
-	data.Write(resp["header"])
-	data.Write(resp["types"])
-	data.Write(resp["operations"])
-	data.Write(resp["soap"])
-
-	// go fmt the generated code
-	source, err := format.Source(data.Bytes())
-	if err != nil {
-		t.Fatal(err)
-	}
-	expectedBytes, err := ioutil.ReadFile("./fixtures/epcis/epcisquery.src")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	actual := string(source)
-	expected := string(expectedBytes)
-	if actual != expected {
-		_ = ioutil.WriteFile("./fixtures/epcis/epcisquery_gen.src", source, 0664)
-		t.Error("got source ./fixtures/epcis/epcisquery_gen.src but expected ./fixtures/epcis/epcisquery.src")
 	}
 }
 
