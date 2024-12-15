@@ -388,6 +388,10 @@ func (s *Client) call(ctx context.Context, soapAction string, request, response 
 		XmlNsSoapEnv: XmlNsSoapEnv,
 	}
 
+	if s.xmlNsSoap != "" {
+		envelope.XmlNsSoap = s.xmlNsSoap
+	}
+
 	if s.headers != nil && len(s.headers) > 0 {
 		envelope.Header = &SOAPHeader{
 			Headers: s.headers,
